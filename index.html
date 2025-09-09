@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>四季合合拼圖統計表</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* 金卡底色（整格） */
+    .gold-cell { background-color: #fff8dc !important; }
+
+    /* 已勾選（非金卡）灰底 */
+    .checked-cell { background-color: #7c398570 !important; }
+
+    /* 金3/4/5 字色（用在結果表格內的數字） */
+    .gold3 { color:#d4af37; font-weight:700; }
+    .gold4 { color:#ff5733; font-weight:700; }
+    .gold5 { color:#0d6efd;  font-weight:700; }
+
+    /* 結果表格樣式微調 */
+    #result table th, #result table td { vertical-align: middle; }
+    .cell-tight { letter-spacing: 1px; }
+    .tag-ok { display:inline-block; padding:.2rem .5rem; border-radius:.25rem; background:#e9ecef; }
+    
+    /* 多卡提示：紅色邊框 + 紅色數字 */
+    .checked-multi { border: 2px solid #dc3545 !important; }
+    .qty.multi { color: #dc3545; font-weight: 700; }
+
+    /* 金卡提示：金色外框 (比多卡紅邊優先) */
+    .gold-hint { box-shadow: 0 0 0 3px #d4af37 inset; } 
+    .gold-border { box-shadow: 0 0 0 3px #d4af37 inset; }
+   /* 金卡提示：金色內框（任何狀態都顯示、與紅邊/灰底不衝突） */
+   #cardTable td.gold-hint { position: relative; }
+   #cardTable td.gold-hint::after {
+     content: "";
+     position: absolute;
+     inset: 2px;                 /* 內縮 2px，避免被表格邊線蓋住 */
+     border: 2px solid #d4af37;  /* 金色框 */
+     border-radius: 4px;         /* 圓角可依喜好調整 */
+     pointer-events: none;       /* 不擋點擊 */
+     z-index: 1;                 /* 蓋在內容上方 */
+}
+
+
+    /* 手機友善尺寸 */
+    @media (max-width: 768px) {
+      .colName { min-width: 160px !important; }
+      #cardTable input.qty { width: 72px !important; }
+      #cardTable .form-check-input { width: 22px; height: 22px; }
+      .table-responsive { overflow-x: auto; }
+    }
+
+    /* 固定表頭與左側列號（sticky） */
+    #cardTable thead th { position: sticky; top: 0; z-index: 2; background: #cfe2ff; }
+    #cardTable thead th:first-child,
+    #cardTable tbody td:first-child {
+      position: sticky; left: 0; background: #fff; z-index: 3;
+    }
+
+    /* 讓整格好點擊 */
+    .cell-hit { cursor: pointer; padding: .2rem; }
+    .touch-gap { gap: .6rem !important; }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container py-4">
+
+  <h1 class="mb-4">四季合合拼圖統計表</h1>
+
+  <!-- 表格 -->
+  <div class="table-responsive">
+    <table class="table table-bordered align-middle text-center" id="cardTable">
+      <thead class="table-primary">
+        <tr>
+          <th>#</th>
+          <!-- 欄位標題動態生成 -->
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 1~9 列動態生成 -->
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="mt-4">結果</h3>
+  <div id="result" class="p-3 bg-white border rounded"></div>
+
+  <div class="mt-3 d-flex flex-wrap gap-2">
+    <button class="btn btn-primary" onclick="copyResult()">複製結果</button>
+    <button class="btn btn-outline-primary" onclick="downloadResult()">下載 .txt</button>
+    <button class="btn btn-outline-success" onclick="exportState()">匯出狀態</button>
+    <button class="btn btn-outline-warning" onclick="importState()">匯入狀態</button>
+    <button class="btn btn-secondary" onclick="resetAll()">重設（不清記憶）</button>
+    <button class="btn btn-outline-secondary" onclick="clearMemory()">清空記憶</button>
+  </div>
+
+</div>
+
+<!-- 缺的 九宮格 Modal -->
+<div class="modal fade" id="missModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">選擇缺的號碼</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <div id="missGrid" class="d-grid" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+          <!-- 九宮格按鈕動態生成 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="applyMissBtn">套用</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ---------------- 設定 ----------------
+const cols = 15;
+const rows = 9;
+const STORAGE_KEY = 'szhh-cards-v1';
+
+// 金卡定義
+const gold3 = [[8,8],[9,6],[10,6],[11,4],[12,4],[13,3]];
+const gold4 = [[14,6],[13,7],[12,7],[11,7],[10,8]];
+const gold5 = [[15,8],[15,9],[14,9],[13,8],[13,9],[12,9]];
+
+// ---------------- 建表 ----------------
+const table = document.getElementById("cardTable");
+const theadRow = table.querySelector("thead tr");
+const tbody = table.querySelector("tbody");
+
+// 欄位標題名稱（固定清單）
+const colTitles = [
+  "暗影走廊","幽魂果汁","鬼故事書","閻風陣陣","怪誕小鎮",
+  "局部暴雨","睡前故事","拍扁房屋","死神來了","蟲寶深林",
+  "傳送陣法","觸手迷宮","無限循環","符下垂街","巨貓晚餐"
+];
+
+// 建立欄位標題（加上全/清/缺）
+for (let c=1;c<=cols;c++){
+  const th=document.createElement("th");
+  th.innerHTML = `
+    <div class="d-flex flex-column align-items-center">
+      <span class="text-muted small">${c}</span>
+      <input type="text" class="form-control form-control-sm text-center colName"
+             value="${colTitles[c-1]||"欄"+c}" data-col="${c}" style="min-width:110px">
+      <div class="btn-group btn-group-sm mt-1" role="group">
+        <button type="button" class="btn btn-primary q-all"  data-col="${c}">全</button>
+        <button type="button" class="btn btn-danger q-none" data-col="${c}">清</button>
+        <button type="button" class="btn btn-light q-miss" data-col="${c}">缺</button>
+        <button type="button" class="btn btn-outline-danger q-zero" data-col="${c}">零</button>
+      </div>
+    </div>`;
+  theadRow.appendChild(th);
+}
+
+// 產生 1~9 列
+for (let r=1;r<=rows;r++){
+  const tr=document.createElement("tr");
+  const idx=document.createElement("td");
+  idx.textContent=r;
+  tr.appendChild(idx);
+  for (let c=1;c<=cols;c++){
+    const td=document.createElement("td");
+
+    const isGold =
+      gold3.some(([cc,rr])=>cc===c && rr===r) ||
+      gold4.some(([cc,rr])=>cc===c && rr===r) ||
+      gold5.some(([cc,rr])=>cc===c && rr===r);
+    if (isGold) td.classList.add("gold-cell");
+
+    td.innerHTML=`
+      <div class="d-flex justify-content-center align-items-center touch-gap">
+        <input type="checkbox" class="form-check-input chk">
+        <input type="number" class="form-control form-control-sm qty" min="0" inputmode="numeric" style="width:60px">
+      </div>`;
+    td.classList.add('cell-hit');
+    tr.appendChild(td);
+  }
+  tbody.appendChild(tr);
+}
+
+// 整格點擊切換（不自動填數量）
+tbody.addEventListener('click', (e) => {
+  const td = e.target.closest('td');
+  if (!td) return;
+  const chk = td.querySelector('.chk');
+  const qty = td.querySelector('.qty');
+  if (!chk || !qty) return;
+  if (e.target === chk || e.target === qty) return;
+  chk.checked = !chk.checked;
+  calculate();
+  refreshCheckedStyles();
+  saveStateDebounced();
+});
+
+// ---------------- 工具 ----------------
+function goldClass(col, row){
+  const pos = [col, row];
+  if (gold5.some(([c,r])=>c===pos[0]&&r===pos[1])) return 'gold5';
+  if (gold4.some(([c,r])=>c===pos[0]&&r===pos[1])) return 'gold4';
+  if (gold3.some(([c,r])=>c===pos[0]&&r===pos[1])) return 'gold3';
+  return '';
+}
+function setColumnChecked(colIdx, checked, qtyVal = '') {
+  for (let r=0; r<rows; r++){
+    const cell = tbody.rows[r].cells[colIdx];
+    const chk  = cell.querySelector('.chk');
+    const qty  = cell.querySelector('.qty');
+    chk.checked = !!checked;
+    qty.value   = checked ? qtyVal : '';
+  }
+}
+function setColumnMissing(colIdx, missArr) {
+  setColumnChecked(colIdx, true, '');
+  missArr.forEach(n=>{
+    const rowNo = Number(n);
+    if (rowNo>=1 && rowNo<=rows){
+      const cell = tbody.rows[rowNo-1].cells[colIdx];
+      const chk  = cell.querySelector('.chk');
+      const qty  = cell.querySelector('.qty');
+      chk.checked = false;
+      qty.value = '';
+    }
+  });
+}
+
+function refreshCheckedStyles(){
+  for (let r=0; r<rows; r++){
+    for (let c=1; c<=cols; c++){
+      const cell = tbody.rows[r].cells[c];
+      const chk  = cell.querySelector('.chk');
+      const qty  = cell.querySelector('.qty');
+      if (!cell || !chk || !qty) continue;
+
+      // 清除舊 class
+      cell.classList.remove('checked-cell','checked-multi','gold-hint');
+      qty.classList.remove('multi');
+
+      if (chk.checked){
+        cell.classList.add('checked-cell');   // 灰底
+        if (qty.value && Number(qty.value) >= 1){
+          cell.classList.add('checked-multi'); // 紅邊
+          qty.classList.add('multi');          // 紅字
+        }
+      }
+
+      // 金卡格子 → 額外加金色提示，不管有沒有勾選、多卡
+      const isGold =
+        gold3.some(([cc,rr])=>cc===c && rr===r+1) ||
+        gold4.some(([cc,rr])=>cc===c && rr===r+1) ||
+        gold5.some(([cc,rr])=>cc===c && rr===r+1);
+      if (isGold){
+        cell.classList.add('gold-hint');
+      }
+    }
+  }
+}
+
+
+// ---------------- 九宮格缺的 ----------------
+let currentMissCol = null;
+let selectedMiss = new Set();
+function buildMissGrid(){
+  const grid = document.getElementById("missGrid");
+  grid.innerHTML = "";
+  for (let i=1;i<=9;i++){
+    const btn = document.createElement("button");
+    btn.type="button";
+    btn.className="btn btn-outline-dark";
+    btn.textContent=i;
+    btn.dataset.num=i;
+    btn.addEventListener("click",()=>{
+      if (selectedMiss.has(i)){
+        selectedMiss.delete(i);
+        btn.classList.remove("btn-danger");
+        btn.classList.add("btn-outline-dark");
+      } else {
+        selectedMiss.add(i);
+        btn.classList.add("btn-danger");
+        btn.classList.remove("btn-outline-dark");
+      }
+    });
+    grid.appendChild(btn);
+  }
+}
+function openMissModal(col){
+  currentMissCol = col;
+  selectedMiss.clear();
+  buildMissGrid();
+  const modal = new bootstrap.Modal(document.getElementById("missModal"));
+  modal.show();
+}
+document.getElementById("applyMissBtn").addEventListener("click",()=>{
+  if (!currentMissCol) return;
+  setColumnMissing(currentMissCol, Array.from(selectedMiss));
+  calculate();
+  refreshCheckedStyles();
+  saveStateDebounced();
+  bootstrap.Modal.getInstance(document.getElementById("missModal")).hide();
+});
+
+// ---------------- 表頭快速鍵 ----------------
+// 表頭快速鍵
+theadRow.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const col = Number(btn.dataset.col);
+  if (!col) return;
+
+  if (btn.classList.contains('q-all')) {
+    setColumnChecked(col, true, '');
+  } else if (btn.classList.contains('q-none')) {
+    setColumnChecked(col, false, '');
+  } else if (btn.classList.contains('q-miss')) {
+    openMissModal(col);
+  } else if (btn.classList.contains('q-zero')) {
+    zeroColumnExtras(col);                // ← 接上這行
+  }
+
+  calculate();
+  refreshCheckedStyles();
+  saveStateDebounced();
+});
+
+
+// ---------------- 計算 ----------------
+function calculate(){
+  const colNames = document.querySelectorAll(".colName");
+  let html = `
+    <div class="table-responsive">
+      <table id="resultTable" class="table table-sm table-bordered text-center align-middle">
+        <thead class="table-secondary">
+          <tr>
+            <th style="width:36%;">#．名稱</th>
+            <th style="width:32%;">缺的</th>
+            <th style="width:32%;">多的</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  for (let c=0;c<cols;c++){
+    let lackParts=[], multiParts=[];
+    for (let r=0;r<rows;r++){
+      const cell=tbody.rows[r].cells[c+1];
+      const chk=cell.querySelector(".chk").checked;
+      const qty=cell.querySelector(".qty").value;
+      const rowNo = r+1;
+      const cls = goldClass(c+1, rowNo);
+
+    if (!chk) {
+    // 沒勾選 → 缺卡
+    lackParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
+    } else {
+      // 已勾選 → 視為「已有」
+      // 有勾選且數字 >= 1 → 視為「多卡」
+      if (qty && Number(qty) >= 1) {
+        multiParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
+      }
+      // 勾選但數字空白 → 只是「已有」，不列出
+    }
+
+    }
+
+    const colName = colNames[c].value || `欄${c+1}`;
+    const lackText  = lackParts.length ? lackParts.join('') : `<span class="tag-ok">齊</span>`;
+    const multiText = multiParts.length ? multiParts.join('') : '';
+
+    html += `
+      <tr>
+        <td class="text-start"><span class="text-muted">${String(c+1).padStart(2,'0')}.</span> ${colName}</td>
+        <td class="cell-tight">${lackText}</td>
+        <td class="cell-tight">${multiText}</td>
+      </tr>
+    `;
+  }
+
+  html += `</tbody></table></div>`;
+  document.getElementById("result").innerHTML = html;
+  refreshCheckedStyles();
+}
+
+// 將某欄位「已勾選且 qty>=1」的格子，數量一鍵歸 0
+function zeroColumnExtras(colIdx){
+  for (let r=0; r<rows; r++){
+    const cell = tbody.rows[r].cells[colIdx];
+    const chk  = cell.querySelector('.chk');
+    const qty  = cell.querySelector('.qty');
+    if (chk.checked && qty.value && Number(qty.value) >= 1){
+      qty.value = 0; // 歸 0 = 不算多卡，但仍是「已有」
+    }
+  }
+}
+
+
+// ---------------- 匯出結果 ----------------
+function getPlainResultText(){
+  const tbl = document.getElementById("resultTable");
+  if(!tbl) return "";
+  const lines = [];
+  lines.push("#．名稱\t缺的\t多的");
+  const bodyRows = tbl.tBodies[0]?.rows || [];
+  for (let i=0;i<bodyRows.length;i++){
+    const row = bodyRows[i];
+    const nameCell = row.cells[0].innerText.trim();
+    const lackCell = row.cells[1].innerText.trim();
+    const multiCell= row.cells[2].innerText.trim();
+    lines.push(`${nameCell}\t${lackCell||""}\t${multiCell||""}`);
+  }
+  return lines.join("\n");
+}
+async function copyResult(){
+  const text = getPlainResultText();
+  if (!text){ alert("目前沒有可複製的內容。"); return; }
+  try{
+    await navigator.clipboard.writeText(text);
+    alert("已複製結果到剪貼簿！");
+  }catch(e){
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy");
+    document.body.removeChild(ta);
+    alert("已複製結果到剪貼簿！");
+  }
+}
+function downloadResult(){
+  const text = getPlainResultText();
+  if (!text){ alert("目前沒有可下載的內容。"); return; }
+  const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const now = new Date();
+  const pad = n => String(n).padStart(2,"0");
+  const filename = `cards_result_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.txt`;
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ---------------- 記憶 ----------------
+function snapshotState(){
+  const names = Array.from(document.querySelectorAll('.colName')).map(i => i.value);
+  const cells = [];
+  for (let r=0; r<rows; r++){
+    const row = [];
+    for (let c=0; c<cols; c++){
+      const cell = tbody.rows[r].cells[c+1];
+      const chk = cell.querySelector('.chk').checked;
+      const qty = cell.querySelector('.qty').value;
+      row.push({ chk, qty });
+    }
+    cells.push(row);
+  }
+  return { names, cells };
+}
+function applyState(state){
+  if (state?.names?.length === cols){
+    document.querySelectorAll('.colName').forEach((el, i) => el.value = state.names[i] ?? el.value);
+  }
+  if (Array.isArray(state?.cells) && state.cells.length === rows){
+    for (let r=0; r<rows; r++){
+      for (let c=0; c<cols; c++){
+        const cell = tbody.rows[r].cells[c+1];
+        const chk = cell.querySelector('.chk');
+        const qty = cell.querySelector('.qty');
+        const v = state.cells[r][c] || {};
+        chk.checked = !!v.chk;
+        qty.value = (v.qty ?? '');
+      }
+    }
+  }
+  calculate();
+  refreshCheckedStyles();
+}
+let saveTimer = null;
+function saveStateDebounced(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotState()));
+    } catch(e) {}
+  }, 200);
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    applyState(state);
+    return true;
+  }catch(e){ return false; }
+}
+function clearMemory(){
+  localStorage.removeItem(STORAGE_KEY);
+  alert('已清空記憶。');
+}
+function exportState(){
+  const text = JSON.stringify(snapshotState());
+  navigator.clipboard.writeText(text).then(()=>{ alert("已複製狀態到剪貼簿！"); })
+    .catch(()=>{ alert("無法存取剪貼簿，請手動複製。"); });
+}
+function importState(){
+  const text = prompt("請貼上之前匯出的狀態文字（JSON）：");
+  if (!text) return;
+  try {
+    const state = JSON.parse(text);
+    applyState(state);
+    saveStateDebounced();
+    alert("已套用匯入狀態！");
+  } catch(e){
+    alert("格式錯誤，請確認貼上的內容。");
+  }
+}
+
+// ---------------- 綁定事件與初始化 ----------------
+function bindEvents(){
+  document.querySelectorAll(".chk,.qty,.colName").forEach(el=>{
+    el.addEventListener("input", () => { calculate(); refreshCheckedStyles(); saveStateDebounced(); });
+    el.addEventListener("change", () => { calculate(); refreshCheckedStyles(); saveStateDebounced(); });
+  });
+}
+function resetAll(){
+  document.querySelectorAll(".chk").forEach(el=>el.checked=false);
+  document.querySelectorAll(".qty").forEach(el=>el.value="");
+  calculate();
+  refreshCheckedStyles();
+  saveStateDebounced();
+}
+bindEvents();
+if (!loadState()) { calculate(); }
+</script>
+
+</body>
+</html>
