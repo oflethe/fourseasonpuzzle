@@ -43,6 +43,16 @@
      z-index: 1;                 /* 蓋在內容上方 */
 }
 
+/* 匯出圖片時讓結果表格框線更粗更黑 */
+.export-compact #resultTable {
+  border: 1px solid #000 !important;
+}
+
+.export-compact #resultTable th,
+.export-compact #resultTable td {
+  border: 1px solid #000 !important;
+}
+
 
     /* 手機友善尺寸 */
     @media (max-width: 768px) {
@@ -85,7 +95,7 @@
   </div>
 
   <h3 class="mt-4">結果</h3>
-  <div id="result" class="p-3 bg-white border rounded"></div>
+  <div id="result" class="p-3 bg-white border rounded col-md-4 col-sm-12"></div>
 
   <div class="mt-3 d-flex flex-wrap gap-2">
     <button class="btn btn-primary" onclick="copyResult()">複製結果</button>
@@ -339,11 +349,11 @@ function calculate(){
   const colNames = document.querySelectorAll(".colName");
   let html = `
     <div class="table-responsive">
-      <table id="resultTable" class="table table-sm table-bordered text-center align-middle">
+      <table id="resultTable" class="table table-sm table-bordered border border-2 border-dark text-center align-middle">
         <thead class="table-secondary">
           <tr>
-            <th style="width:36%;">#．名稱</th>
-            <th style="width:32%;">缺的</th>
+            <th style="width:36%;" class="bg-warning">#．名稱</th>
+            <th style="width:32%;" class="bg-danger">缺的</th>
             <th style="width:32%;">多的</th>
           </tr>
         </thead>
@@ -379,7 +389,7 @@ function calculate(){
 
     html += `
       <tr>
-        <td class="text-start"><span class="text-muted">${String(c+1).padStart(2,'0')}.</span> ${colName}</td>
+        <td class="text-start bg-warning-subtle"><span class="text-muted">${String(c+1).padStart(2,'0')}.</span> ${colName}</td>
         <td class="cell-tight">${lackText}</td>
         <td class="cell-tight">${multiText}</td>
       </tr>
@@ -435,15 +445,35 @@ async function copyResult(){
   }
 }
 
-function downloadImage(){
-  const target = document.getElementById("result"); // 只存結果表格
-  html2canvas(target).then(canvas => {
+function downloadImage() {
+  const target = document.getElementById("result"); // 只匯出結果表格
+  if (!target) return;
+
+  // 1) 套上緊縮樣式 + 強化框線
+  document.body.classList.add('export-compact');
+
+  // 2) 生成較高解析度的圖片（scale=2）
+  html2canvas(target, {
+    scale: 2,
+    backgroundColor: '#ffffff' // 白底（避免透明）
+  }).then(canvas => {
+    // 3) 設定檔名：seasonpuzzle-yyMMdd.png
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const filename = `seasonpuzzle-${yy}${mm}${dd}.png`;
+
     const link = document.createElement("a");
-    link.download = "result.png";
+    link.download = filename;
     link.href = canvas.toDataURL("image/png");
     link.click();
+  }).finally(() => {
+    // 4) 移除緊縮樣式，恢復原狀
+    document.body.classList.remove('export-compact');
   });
 }
+
 
 
 function downloadResult(){
