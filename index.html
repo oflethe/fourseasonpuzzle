@@ -410,7 +410,7 @@ function calculate(){
     }
 
     const colName = colNames[c].value || `欄${c+1}`;
-    const lackText  = lackParts.length ? lackParts.join('') : `<span class="tag-ok">齊</span>`;
+    const lackText  = lackParts.length ? lackParts.join('') : `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
     const multiText = multiParts.length ? multiParts.join('') : '';
 
     html += `
