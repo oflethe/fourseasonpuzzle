@@ -12,7 +12,7 @@
     .gold-cell { background-color: #fff8dc !important; }
 
     /* 已勾選（非金卡）灰底 */
-    .checked-cell { background-color: #7c398570 !important; }
+    .checked-cell { background-color: #aec1df !important; }
 
     /* 金3/4/5 字色（用在結果表格內的數字） */
     .gold3 { color:#d4af37; font-weight:700; }
@@ -93,9 +93,13 @@
       </tbody>
     </table>
   </div>
-
+<div class="row">
   <h3 class="mt-4">結果</h3>
-  <div id="result" class="p-3 bg-white border rounded col-md-4 col-sm-12"></div>
+  <label class="small">
+    <input type="checkbox" id="showQtyToggle"> 顯示多卡數量
+  </label></div>
+  
+  <div id="result" class="p-3 bg-white border rounded col-md-auto col-sm-12"></div>
 
   <div class="mt-3 d-flex flex-wrap gap-2">
     <button class="btn btn-primary" onclick="copyResult()">複製結果</button>
@@ -345,8 +349,16 @@ theadRow.addEventListener('click', (e)=>{
 
 
 // ---------------- 計算 ----------------
+// ---------------- 計算 ----------------
+// ---------------- 計算 ----------------
 function calculate(){
   const colNames = document.querySelectorAll(".colName");
+  const showQty = document.getElementById("showQtyToggle")?.checked; // ← 開關
+
+  // 金卡 缺/多 統計
+  let gold3Missing = 0, gold4Missing = 0, gold5Missing = 0;
+  let gold3Multi = 0,   gold4Multi = 0,   gold5Multi = 0;
+
   let html = `
     <div class="table-responsive">
       <table id="resultTable" class="table table-sm table-bordered border border-2 border-dark text-center align-middle">
@@ -365,22 +377,36 @@ function calculate(){
     for (let r=0;r<rows;r++){
       const cell=tbody.rows[r].cells[c+1];
       const chk=cell.querySelector(".chk").checked;
-      const qty=cell.querySelector(".qty").value;
+      const qtyVal=cell.querySelector(".qty").value;
+      const qty = qtyVal === "" ? "" : Number(qtyVal);
       const rowNo = r+1;
       const cls = goldClass(c+1, rowNo);
 
-    if (!chk) {
-    // 沒勾選 → 缺卡
-    lackParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
-    } else {
-      // 已勾選 → 視為「已有」
-      // 有勾選且數字 >= 1 → 視為「多卡」
-      if (qty && Number(qty) >= 1) {
-        multiParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
-      }
-      // 勾選但數字空白 → 只是「已有」，不列出
-    }
+      if (!chk) {
+        // 缺卡
+        lackParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
 
+        // 統計金卡缺數
+        const pos = [c+1, rowNo];
+        if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Missing++;
+        if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Missing++;
+        if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Missing++;
+      } else {
+        // 已勾選：若 qty >= 1 視為多卡
+        if (qty !== "" && qty >= 1){
+          const label = showQty ? `${rowNo}(×${qty})` : `${rowNo}`;
+          multiParts.push(cls ? `<span class="${cls}">${label}</span>` : label);
+
+          // 只有在顯示數量時才統計「多」的總數（更直覺）
+          if (showQty){
+            const pos = [c+1, rowNo];
+            if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Multi += qty;
+            if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Multi += qty;
+            if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Multi += qty;
+          }
+        }
+        // 勾選但 qty 空白或 0 → 算「已有」，不列出
+      }
     }
 
     const colName = colNames[c].value || `欄${c+1}`;
@@ -389,17 +415,31 @@ function calculate(){
 
     html += `
       <tr>
-        <td class="text-start bg-warning-subtle"><span class="text-muted">${String(c+1).padStart(2,'0')}.</span> ${colName}</td>
+        <td class="text-start bg-warning-subtle">
+          <span class="text-muted">${String(c+1).padStart(2,'0')}.</span> ${colName}
+        </td>
         <td class="cell-tight">${lackText}</td>
         <td class="cell-tight">${multiText}</td>
       </tr>
     `;
   }
 
-  html += `</tbody></table></div>`;
+  // 總結列（顯示缺；若開啟顯示數量，亦顯示多）
+  html += `
+      <tr class="table-warning fw-bold">
+        <td colspan="3" class="text-start">
+          金3 缺 ${gold3Missing}${showQty ? `　多 ${gold3Multi}` : ``}
+          　|　金4 缺 ${gold4Missing}${showQty ? `　多 ${gold4Multi}` : ``}
+          　|　金5 缺 ${gold5Missing}${showQty ? `　多 ${gold5Multi}` : ``}
+        </td>
+      </tr>
+    </tbody></table></div>
+  `;
+
   document.getElementById("result").innerHTML = html;
   refreshCheckedStyles();
 }
+
 
 // 將某欄位「已勾選且 qty>=1」的格子，數量一鍵歸 0
 function zeroColumnExtras(colIdx){
@@ -580,6 +620,7 @@ function resetAll(){
   saveStateDebounced();
 }
 bindEvents();
+document.getElementById("showQtyToggle")?.addEventListener("change", calculate);
 if (!loadState()) { calculate(); }
 </script>
 
