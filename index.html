@@ -98,10 +98,10 @@
   <label class="small">
     <input type="checkbox" id="showQtyToggle"> 顯示多卡數量
   </label></div>
-  <span id="todayBadge" class="col-sm-12 ms-2 d-flex justify-content-end fw-bold"></span>
+  <span id="todayBadge" class="mt-3 col-sm-12 ms-2 d-flex justify-content-end fw-bold"></span>
   <div id="result" class="p-3 bg-white border rounded col-md-auto col-sm-12"></div>
 
-  <div class="mt-3 d-flex flex-wrap gap-2">
+  <div class="mt-3 d-flex flex-wrap gap-2 mb-5">
     <button class="btn btn-primary" onclick="copyResult()">複製結果</button>
     <button class="btn btn-outline-dark" onclick="downloadImage()">下載圖片</button>
     <button class="btn btn-outline-primary" onclick="downloadResult()">下載 .txt</button>
@@ -155,9 +155,9 @@ const tbody = table.querySelector("tbody");
 
 // 欄位標題名稱（固定清單）
 const colTitles = [
-  "暗影走廊","幽魂果汁","鬼故事書","閻風陣陣","怪誕小鎮",
-  "局部暴雨","睡前故事","拍扁房屋","死神來了","蟲寶深林",
-  "傳送陣法","觸手迷宮","無限循環","符下垂街","巨貓晚餐"
+  "暗影走廊","幽魂果汁","鬼故事书","阎风阵阵","怪诞小镇",
+  "局部暴雨","睡前故事","拍扁房屋","死神来了","虫宝深林",
+  "传送阵法","触手迷宫","无限循环","符下垂街","巨猫晚餐"
 ];
 
 // 建立欄位標題（加上全/清/缺）
@@ -348,8 +348,6 @@ theadRow.addEventListener('click', (e)=>{
 });
 
 
-// ---------------- 計算 ----------------
-// ---------------- 計算 ----------------
 // ---------------- 計算 ----------------
 function calculate(){
   const colNames = document.querySelectorAll(".colName");
@@ -615,6 +613,49 @@ function showTodayBadge() {
   document.getElementById("todayBadge").textContent = `日期：${yyyy}-${mm}-${dd}`;
 }
 showTodayBadge();
+
+
+function snapshotState(){
+  const names = Array.from(document.querySelectorAll('.colName')).map(i => i.value);
+  const cells = [];
+  for (let r=0; r<rows; r++){
+    const row = [];
+    for (let c=0; c<cols; c++){
+      const cell = tbody.rows[r].cells[c+1];
+      const chk = cell.querySelector('.chk').checked;
+      const qty = cell.querySelector('.qty').value;
+      row.push({ chk, qty });
+    }
+    cells.push(row);
+  }
+  // 新增 showQtyToggle 狀態
+  const showQty = document.getElementById("showQtyToggle")?.checked ?? false;
+  return { names, cells, showQty };
+}
+
+function applyState(state){
+  if (state?.names?.length === cols){
+    document.querySelectorAll('.colName').forEach((el, i) => el.value = state.names[i] ?? el.value);
+  }
+  if (Array.isArray(state?.cells) && state.cells.length === rows){
+    for (let r=0; r<rows; r++){
+      for (let c=0; c<cols; c++){
+        const cell = tbody.rows[r].cells[c+1];
+        const chk = cell.querySelector('.chk');
+        const qty = cell.querySelector('.qty');
+        const v = state.cells[r][c] || {};
+        chk.checked = !!v.chk;
+        qty.value = (v.qty ?? '');
+      }
+    }
+  }
+  // 還原 showQtyToggle 狀態
+  if (typeof state?.showQty === "boolean") {
+    document.getElementById("showQtyToggle").checked = state.showQty;
+  }
+  calculate();
+  refreshCheckedStyles();
+}
 
 // ...existing code...
 
