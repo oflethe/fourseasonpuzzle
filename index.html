@@ -146,7 +146,7 @@ const STORAGE_KEY = 'szhh-cards-v1';
 // 金卡定義
 const gold3 = [[8,8],[9,6],[10,6],[11,4],[12,4],[13,3]];
 const gold4 = [[14,6],[13,7],[12,7],[11,7],[10,8]];
-const gold5 = [[15,8],[15,9],[14,9],[13,8],[13,9],[12,9]];
+const gold5 = [[15,8],[15,9],[14,9],[13,9],[12,9]];
 
 // ---------------- 建表 ----------------
 const table = document.getElementById("cardTable");
@@ -351,11 +351,15 @@ theadRow.addEventListener('click', (e)=>{
 // ---------------- 計算 ----------------
 function calculate(){
   const colNames = document.querySelectorAll(".colName");
-  const showQty = document.getElementById("showQtyToggle")?.checked; // ← 開關
+  const showQty = document.getElementById("showQtyToggle")?.checked;
 
   // 金卡 缺/多 統計
   let gold3Missing = 0, gold4Missing = 0, gold5Missing = 0;
   let gold3Multi = 0,   gold4Multi = 0,   gold5Multi = 0;
+
+  // 🔹 拼圖總缺、多 統計
+  let totalMissing = 0;
+  let totalMulti   = 0;
 
   let html = `
     <div class="table-responsive">
@@ -372,6 +376,8 @@ function calculate(){
 
   for (let c=0;c<cols;c++){
     let lackParts=[], multiParts=[];
+    let lackCount = 0; // 🔹 計算缺幾張
+
     for (let r=0;r<rows;r++){
       const cell=tbody.rows[r].cells[c+1];
       const chk=cell.querySelector(".chk").checked;
@@ -381,21 +387,21 @@ function calculate(){
       const cls = goldClass(c+1, rowNo);
 
       if (!chk) {
-        // 缺卡
         lackParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
+        lackCount++;
+        totalMissing++; // 🔹 總缺數累加
 
-        // 統計金卡缺數
+        // 金卡缺數
         const pos = [c+1, rowNo];
         if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Missing++;
         if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Missing++;
         if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Missing++;
       } else {
-        // 已勾選：若 qty >= 1 視為多卡
         if (qty !== "" && qty >= 1){
           const label = showQty ? `${rowNo}(×${qty})` : `${rowNo}`;
           multiParts.push(cls ? `<span class="${cls}">${label}</span>` : label);
+          totalMulti += showQty ? qty : 1; // 🔹 總多數累加
 
-          // 只有在顯示數量時才統計「多」的總數（更直覺）
           if (showQty){
             const pos = [c+1, rowNo];
             if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Multi += qty;
@@ -403,12 +409,13 @@ function calculate(){
             if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Multi += qty;
           }
         }
-        // 勾選但 qty 空白或 0 → 算「已有」，不列出
       }
     }
 
     const colName = colNames[c].value || `欄${c+1}`;
-    const lackText  = lackParts.length ? lackParts.join('') : `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
+    const lackText  = lackParts.length
+        ? `${lackParts.join('')} `
+        : `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
     const multiText = multiParts.length ? multiParts.join('') : '';
 
     html += `
@@ -422,13 +429,25 @@ function calculate(){
     `;
   }
 
-  // 總結列（顯示缺；若開啟顯示數量，亦顯示多）
+  // 🔹 金卡統計行
   html += `
       <tr class="table-warning fw-bold">
         <td colspan="3" class="text-start">
           金3 缺 ${gold3Missing}${showQty ? `　多 ${gold3Multi}` : ``}
           　|　金4 缺 ${gold4Missing}${showQty ? `　多 ${gold4Multi}` : ``}
           　|　金5 缺 ${gold5Missing}${showQty ? `　多 ${gold5Multi}` : ``}
+        </td>
+      </tr>
+  `;
+
+  // 🔹 拼圖總計行
+  html += `
+      <tr class="table-info fw-bold">
+        <td colspan="3" class="text-start">
+          拼圖總計：缺 ${totalMissing}${showQty ? `　多 ${totalMulti}` : ``}
+          　|　金卡總計：缺 ${gold3Missing + gold4Missing + gold5Missing}
+          　${showQty ? `　多 ${gold3Multi + gold4Multi + gold5Multi}` : ``}
+          　|　金5 總計：缺 ${gold5Missing}${showQty ? `　多 ${gold5Multi}` : ``}
         </td>
       </tr>
     </tbody></table></div>
