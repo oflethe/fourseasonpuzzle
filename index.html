@@ -477,7 +477,7 @@ function getPlainResultText(){
   const tbl = document.getElementById("resultTable");
   if(!tbl) return "";
   const lines = [];
-  lines.push("#．名稱\t缺的\t多的");
+  lines.push("#．名称\t缺的\t多的");
   const bodyRows = tbl.tBodies[0]?.rows || [];
   for (let i=0;i<bodyRows.length;i++){
     const row = bodyRows[i];
