@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>四季合合拼圖統計表</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.min.js"></script>
+
+
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   <style>
@@ -57,7 +60,7 @@
     /* 手機友善尺寸 */
     @media (max-width: 768px) {
       .colName { min-width: 160px !important; }
-      #cardTable input.qty { width: 72px !important; }
+      #cardTable .qty { width: 72px !important; }
       #cardTable .form-check-input { width: 22px; height: 22px; }
       .table-responsive { overflow-x: auto; }
     }
@@ -72,12 +75,35 @@
     /* 讓整格好點擊 */
     .cell-hit { cursor: pointer; padding: .2rem; }
     .touch-gap { gap: .6rem !important; }
+
+/* 截圖時加入留白與白底，提升可讀性 */
+.export-compact #captureArea { 
+  padding: 24px !important; 
+  background: #fff !important; 
+}
+
+.export-compact #result { 
+  padding: 24px !important; 
+  background: #fff !important; 
+}
+
+
   </style>
 </head>
 <body class="bg-light">
 <div class="container py-4">
 
   <h1 class="mb-4">四季合合拼圖統計表</h1>
+<div class="mb-3">
+
+  <button class="btn btn-outline-success" onclick="setAllPlus(1)">全表多(×1)</button>
+<button class="btn btn-outline-danger" onclick="clearAll()">全表清空</button>
+
+<button class="btn btn-outline-secondary" id="toHantBtn" type="button">繁體</button>
+<button class="btn btn-outline-secondary" id="toHansBtn" type="button">简体</button>
+
+
+</div>
 
   <!-- 表格 -->
   <div class="table-responsive">
@@ -93,32 +119,51 @@
       </tbody>
     </table>
   </div>
-<div class="row">
-  <h3 class="mt-4">结果</h3>
-  <label class="small">
-    <input type="checkbox" id="showQtyToggle"> 显示多卡数量
-  </label></div>
-  <span id="todayBadge" class="mt-3 col-sm-12 ms-2 d-flex justify-content-end fw-bold"></span>
-  <div id="result" class="p-3 bg-white border rounded col-md-auto col-sm-12"></div>
 
-  <div class="mt-3 d-flex flex-wrap gap-2 mb-5">
-    <button class="btn btn-primary" onclick="copyResult()">複製结果</button>
-    <button class="btn btn-outline-dark" onclick="downloadImage()">下载图片</button>
-    <button class="btn btn-outline-primary" onclick="downloadResult()">下载 .txt</button>
-    <button class="btn btn-outline-success" onclick="exportState()">汇出状态</button>
-    <button class="btn btn-outline-warning" onclick="importState()">汇入状态</button>
-    <button class="btn btn-secondary" onclick="resetAll()">重设（不清记忆）</button>
-    <button class="btn btn-outline-secondary" onclick="clearMemory()">清空记忆</button>
+
+  
+
+  <!-- 結果區塊（含日期、開關、按鈕） -->
+<div id="captureArea">
+  <div class="row">
+    <h3 class="mt-4">結果</h3>
+
+   <label class="small" id="labLackCompress">
+  <input type="checkbox" id="lackCompressToggle"> 缺的範圍壓縮
+</label>
+
+<label class="small" id="labShowQty">
+  <input type="checkbox" id="showQtyToggle"> 顯示多卡數量
+</label>
+
   </div>
 
+  <!-- 日期顯示 -->
+  <span id="todayBadge" class="mt-3 col-sm-12 ms-2 d-flex justify-content-end fw-bold"></span>
+
+  <!-- 結果表格 -->
+  <div id="result" class="p-3 bg-white border rounded col-md-auto col-sm-12"></div>
 </div>
+
+<!-- 操作按鈕區 -->
+<div class="mt-3 d-flex flex-wrap gap-2 mb-5">
+  <button class="btn btn-primary" onclick="copyResult()">複製結果</button>
+  <button class="btn btn-outline-dark" onclick="downloadCapture()">截圖（日期→總表）</button>
+  <button class="btn btn-outline-dark" onclick="downloadImage()">下載圖片（僅總表）</button>
+  <button class="btn btn-outline-primary" onclick="downloadResult()">下載 .txt</button>
+  <button class="btn btn-outline-success" onclick="exportState()">匯出狀態</button>
+  <button class="btn btn-outline-warning" onclick="importState()">匯入狀態</button>
+  <button class="btn btn-secondary" onclick="resetAll()">重設（不清記憶）</button>
+  <button class="btn btn-outline-secondary" onclick="clearMemory()">清空記憶</button>
+</div>
+
 
 <!-- 缺的 九宮格 Modal -->
 <div class="modal fade" id="missModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">选择缺的号码</h5>
+        <h5 class="modal-title">選擇缺的號碼</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body text-center">
@@ -174,6 +219,8 @@ for (let c=1;c<=cols;c++){
         <button type="button" class="btn btn-danger q-none" data-col="${c}">清</button>
         <button type="button" class="btn btn-light q-miss" data-col="${c}">缺</button>
         <button type="button" class="btn btn-outline-danger q-zero" data-col="${c}">零</button>
+        <button type="button" class="btn btn-outline-success q-allplus" data-col="${c}">多</button>
+
       </div>
     </div>`;
   theadRow.appendChild(th);
@@ -194,11 +241,24 @@ for (let r=1;r<=rows;r++){
       gold5.some(([cc,rr])=>cc===c && rr===r);
     if (isGold) td.classList.add("gold-cell");
 
-    td.innerHTML=`
-      <div class="d-flex justify-content-center align-items-center touch-gap">
-        <input type="checkbox" class="form-check-input chk">
-        <input type="number" class="form-control form-control-sm qty" min="0" inputmode="numeric" style="width:60px">
-      </div>`;
+td.innerHTML=`
+  <div class="d-flex justify-content-center align-items-center touch-gap">
+    <input type="checkbox" class="form-check-input chk">
+    <select class="form-select form-select-sm qty" style="width:60px">
+      <option value=""></option>
+      <option value="0">0</option>
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+    </select>
+  </div>`;
+
     td.classList.add('cell-hit');
     tr.appendChild(td);
   }
@@ -206,18 +266,48 @@ for (let r=1;r<=rows;r++){
 }
 
 // 整格點擊切換（不自動填數量）
+// 整格點擊切換（勾選時若數量空白，自動填 1）
 tbody.addEventListener('click', (e) => {
   const td = e.target.closest('td');
   if (!td) return;
   const chk = td.querySelector('.chk');
   const qty = td.querySelector('.qty');
   if (!chk || !qty) return;
+
+  // 如果點的是 checkbox 或 select，就不重複觸發
   if (e.target === chk || e.target === qty) return;
+
+  // 反轉勾選狀態
   chk.checked = !chk.checked;
+
+  // 若剛剛是從「未勾 → 勾」且數量空白，自動填 1
+  if (chk.checked && qty.value === "") qty.value = "1";
+
   calculate();
   refreshCheckedStyles();
   saveStateDebounced();
 });
+
+
+//
+
+// 直接點 checkbox 或改動下拉時
+tbody.addEventListener('change', (e) => {
+  const td = e.target.closest('td');
+  if (!td) return;
+  const chk = td.querySelector('.chk');
+  const qty = td.querySelector('.qty');
+  if (!chk || !qty) return;
+
+  // 若點到的是 checkbox，且從未勾→勾選，且數量空白，就自動補 1
+  if (e.target === chk && chk.checked && qty.value === "") {
+    qty.value = "1";
+  }
+  calculate();
+  refreshCheckedStyles();
+  saveStateDebounced();
+});
+
 
 // ---------------- 工具 ----------------
 function goldClass(col, row){
@@ -282,6 +372,15 @@ function refreshCheckedStyles(){
   }
 }
 
+function setColumnAllPlus(colIdx, qtyVal = 1){
+  for (let r=0; r<rows; r++){
+    const cell = tbody.rows[r].cells[colIdx];
+    const chk  = cell.querySelector('.chk');
+    const qty  = cell.querySelector('.qty');
+    chk.checked = true;
+    qty.value   = String(qtyVal);
+  }
+}
 
 // ---------------- 九宮格缺的 ----------------
 let currentMissCol = null;
@@ -341,12 +440,42 @@ theadRow.addEventListener('click', (e)=>{
     openMissModal(col);
   } else if (btn.classList.contains('q-zero')) {
     zeroColumnExtras(col);                // ← 接上這行
-  }
+  }else if (btn.classList.contains('q-allplus')) {
+  setColumnAllPlus(col, 1);      // ← 把整欄全設勾選且數量=1
+}
 
   calculate();
   refreshCheckedStyles();
   saveStateDebounced();
 });
+
+
+
+function setAllPlus(qtyVal = 1){
+  for (let c=1; c<=cols; c++){
+    for (let r=0; r<rows; r++){
+      const cell = tbody.rows[r].cells[c];
+      //const chk  = cell.querySelector('.chk');
+      const qty  = cell.querySelector('.qty');
+      //chk.checked = true;
+      qty.value   = String(qtyVal);
+    }
+  }
+  calculate(); refreshCheckedStyles(); saveStateDebounced();
+}
+
+function clearAll(){
+  for (let c=1; c<=cols; c++){
+    for (let r=0; r<rows; r++){
+      const cell = tbody.rows[r].cells[c];
+      //const chk  = cell.querySelector('.chk');
+      const qty  = cell.querySelector('.qty');
+      //chk.checked = false;
+      qty.value   = "";
+    }
+  }
+  calculate(); refreshCheckedStyles(); saveStateDebounced();
+}
 
 
 // ---------------- 計算 ----------------
@@ -358,7 +487,7 @@ function calculate(){
   let gold3Missing = 0, gold4Missing = 0, gold5Missing = 0;
   let gold3Multi = 0,   gold4Multi = 0,   gold5Multi = 0;
 
-  // 🔹 拼圖總缺、多 統計
+  // 拼圖總缺、多 統計
   let totalMissing = 0;
   let totalMulti   = 0;
 
@@ -375,49 +504,70 @@ function calculate(){
         <tbody>
   `;
 
-  for (let c=0;c<cols;c++){
-    let lackParts=[], multiParts=[];
-    let lackCount = 0; // 🔹 計算缺幾張
+  for (let c=0; c<cols; c++){
+    // 收集器
+    const lackNums   = []; // 缺的（純數字，做壓縮）
+    const lackParts  = []; // 缺的（含金卡上色，逐格顯示用）
+    const multiNums  = []; // 多的（純數字，當 showQty=false 時壓縮）
+    const multiParts = []; // 多的（含 ×數量，當 showQty=true 時逐格顯示）
 
-    for (let r=0;r<rows;r++){
-      const cell=tbody.rows[r].cells[c+1];
-      const chk=cell.querySelector(".chk").checked;
-      const qtyVal=cell.querySelector(".qty").value;
-      const qty = qtyVal === "" ? "" : Number(qtyVal);
-      const rowNo = r+1;
-      const cls = goldClass(c+1, rowNo);
+    for (let r=0; r<rows; r++){
+      const cell = tbody.rows[r].cells[c+1];
+      const chk  = cell.querySelector(".chk").checked;
+      const qtyVal = cell.querySelector(".qty").value;
+      const qty  = (qtyVal === "") ? "" : Number(qtyVal);
+      const rowNo = r + 1;
+      const cls = goldClass(c+1, rowNo); // gold3/gold4/gold5 或 ""
 
-      if (!chk) {
+      if (!chk){
+        // 缺
+        lackNums.push(rowNo);
         lackParts.push(cls ? `<span class="${cls}">${rowNo}</span>` : String(rowNo));
-        lackCount++;
-        totalMissing++; // 🔹 總缺數累加
+        totalMissing++;
 
-        // 金卡缺數
         const pos = [c+1, rowNo];
         if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Missing++;
         if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Missing++;
         if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Missing++;
-      } else {
-        if (qty !== "" && qty >= 1){
-          const label = showQty ? `${rowNo}(×${qty})` : `${rowNo}`;
-          multiParts.push(cls ? `<span class="${cls}">${label}</span>` : label);
-          totalMulti += showQty ? qty : 1; // 🔹 總多數累加
 
-          if (showQty){
-            const pos = [c+1, rowNo];
-            if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Multi += qty;
-            if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Multi += qty;
-            if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Multi += qty;
-          }
+      } else if (qty !== "" && qty >= 1){
+        // 多
+        if (showQty){
+          const label = `${rowNo}(×${qty})`;
+          multiParts.push(cls ? `<span class="${cls}">${label}</span>` : label);
+          totalMulti += qty;
+
+          const pos = [c+1, rowNo];
+          if (gold3.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold3Multi += qty;
+          if (gold4.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold4Multi += qty;
+          if (gold5.some(([cc,rr])=>cc===pos[0] && rr===pos[1])) gold5Multi += qty;
+        } else {
+          multiNums.push(rowNo);
+          totalMulti += 1;
         }
       }
     }
 
     const colName = colNames[c].value || `欄${c+1}`;
-    const lackText  = lackParts.length
-        ? `${lackParts.join('')} `
-        : `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
-    const multiText = multiParts.length ? multiParts.join('') : '';
+
+    // 缺的：用開關決定是否壓縮
+    const lackCompress = document.getElementById("lackCompressToggle")?.checked;
+    let lackText = "";
+    if (lackNums.length){
+      lackNums.sort((a,b)=>a-b);
+      lackText = lackCompress ? formatRanges(lackNums) : lackParts.join("");
+    } else {
+      lackText = `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
+    }
+
+    // 多的：showQty=true → 逐格；false → 壓縮
+    let multiText = "";
+    if (showQty){
+      multiText = multiParts.length ? multiParts.join("") : "";
+    } else if (multiNums.length){
+      multiNums.sort((a,b)=>a-b);
+      multiText = formatRanges(multiNums);
+    }
 
     html += `
       <tr>
@@ -430,7 +580,7 @@ function calculate(){
     `;
   }
 
-  // 🔹 金卡統計行
+  // 金卡統計行
   html += `
       <tr class="table-warning fw-bold">
         <td colspan="3" class="text-start">
@@ -441,7 +591,7 @@ function calculate(){
       </tr>
   `;
 
-  // 🔹 拼圖總計行
+  // 拼圖總計行
   html += `
       <tr class="table-info fw-bold">
         <td colspan="3" class="text-start">
@@ -457,6 +607,24 @@ function calculate(){
   document.getElementById("result").innerHTML = html;
   refreshCheckedStyles();
 }
+
+//
+
+function formatRanges(nums){
+  if (!nums.length) return "";
+  if (nums.length === 9 && nums[0] === 1 && nums[8] === 9) return "1~9";
+  const parts = [];
+  let start = nums[0], prev = nums[0];
+  for (let i=1;i<nums.length;i++){
+    const n = nums[i];
+    if (n === prev + 1) { prev = n; continue; }
+    parts.push(start === prev ? String(start) : `${start}~${prev}`);
+    start = prev = n;
+  }
+  parts.push(start === prev ? String(start) : `${start}~${prev}`);
+  return parts.join("、"); // ← 這個「、」等下可改
+}
+
 
 
 // 將某欄位「已勾選且 qty>=1」的格子，數量一鍵歸 0
@@ -477,7 +645,7 @@ function getPlainResultText(){
   const tbl = document.getElementById("resultTable");
   if(!tbl) return "";
   const lines = [];
-  lines.push("#．名称\t缺的\t多的");
+  lines.push("#．名稱\t缺的\t多的");
   const bodyRows = tbl.tBodies[0]?.rows || [];
   for (let i=0;i<bodyRows.length;i++){
     const row = bodyRows[i];
@@ -503,6 +671,28 @@ async function copyResult(){
   }
 }
 
+//截圖
+
+function downloadCapture(){
+  const target = document.getElementById("captureArea");
+  if (!target) return;
+  document.body.classList.add('export-compact');
+  html2canvas(target, { scale: 2, backgroundColor: '#ffffff' })
+    .then(canvas => {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2,'0');
+      const dd = String(now.getDate()).padStart(2,'0');
+      const filename = `seasonpuzzle-section-${yy}${mm}${dd}.png`;
+      const a = document.createElement('a');
+      a.download = filename;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    })
+    .finally(()=> document.body.classList.remove('export-compact'));
+}
+
+//
 function downloadImage() {
   const target = document.getElementById("result"); // 只匯出結果表格
   if (!target) return;
@@ -562,8 +752,15 @@ function snapshotState(){
     }
     cells.push(row);
   }
-  return { names, cells };
+
+  // 新增 showQtyToggle 與 lackCompressToggle 狀態
+  const showQty = document.getElementById("showQtyToggle")?.checked ?? false;
+  const lackCompress = document.getElementById("lackCompressToggle")?.checked ?? false;
+
+  return { names, cells, showQty, lackCompress, lang: currentLang  };
 }
+
+
 function applyState(state){
   if (state?.names?.length === cols){
     document.querySelectorAll('.colName').forEach((el, i) => el.value = state.names[i] ?? el.value);
@@ -580,9 +777,25 @@ function applyState(state){
       }
     }
   }
+
+  // 還原 showQtyToggle 與 lackCompressToggle 狀態
+  if (typeof state?.showQty === "boolean") {
+    document.getElementById("showQtyToggle").checked = state.showQty;
+  }
+  if (typeof state?.lackCompress === "boolean") {
+    document.getElementById("lackCompressToggle").checked = state.lackCompress;
+  }
+  if (state && (state.lang === 'hans' || state.lang === 'hant')) {
+    currentLang = state.lang;
+    // 先把目前畫面轉成該語系（欄位值也會套）
+    applyLanguage(currentLang);
+  }
+
   calculate();
   refreshCheckedStyles();
 }
+
+
 let saveTimer = null;
 function saveStateDebounced(){
   clearTimeout(saveTimer);
@@ -635,47 +848,7 @@ function showTodayBadge() {
 showTodayBadge();
 
 
-function snapshotState(){
-  const names = Array.from(document.querySelectorAll('.colName')).map(i => i.value);
-  const cells = [];
-  for (let r=0; r<rows; r++){
-    const row = [];
-    for (let c=0; c<cols; c++){
-      const cell = tbody.rows[r].cells[c+1];
-      const chk = cell.querySelector('.chk').checked;
-      const qty = cell.querySelector('.qty').value;
-      row.push({ chk, qty });
-    }
-    cells.push(row);
-  }
-  // 新增 showQtyToggle 狀態
-  const showQty = document.getElementById("showQtyToggle")?.checked ?? false;
-  return { names, cells, showQty };
-}
 
-function applyState(state){
-  if (state?.names?.length === cols){
-    document.querySelectorAll('.colName').forEach((el, i) => el.value = state.names[i] ?? el.value);
-  }
-  if (Array.isArray(state?.cells) && state.cells.length === rows){
-    for (let r=0; r<rows; r++){
-      for (let c=0; c<cols; c++){
-        const cell = tbody.rows[r].cells[c+1];
-        const chk = cell.querySelector('.chk');
-        const qty = cell.querySelector('.qty');
-        const v = state.cells[r][c] || {};
-        chk.checked = !!v.chk;
-        qty.value = (v.qty ?? '');
-      }
-    }
-  }
-  // 還原 showQtyToggle 狀態
-  if (typeof state?.showQty === "boolean") {
-    document.getElementById("showQtyToggle").checked = state.showQty;
-  }
-  calculate();
-  refreshCheckedStyles();
-}
 
 // ...existing code...
 
@@ -693,9 +866,101 @@ function resetAll(){
   refreshCheckedStyles();
   saveStateDebounced();
 }
+
 bindEvents();
+
+// 顯示多卡數量 → 變動就重算
 document.getElementById("showQtyToggle")?.addEventListener("change", calculate);
+
+// 缺的範圍壓縮 → 變動就重算   ← 新增這行
+document.getElementById("lackCompressToggle")?.addEventListener("change", calculate);
+
 if (!loadState()) { calculate(); }
+
+
+// ======= 全頁繁⇄簡 轉換：用 OpenCC 把所有可見文字轉換 =======
+
+// ======= 全頁繁⇄簡 修正版 =======
+
+// 目前語系（預設依 <html lang>）
+let currentLang = (document.documentElement.lang || 'zh-Hant').toLowerCase().includes('hans') ? 'hans' : 'hant';
+
+// 緩存轉換器（避免每次都重新載入）
+let _convHans = null; // 繁→簡
+let _convHant = null; // 簡→繁
+
+async function ensureConverters() {
+  if (!_convHans) _convHans = await OpenCC.Converter({ from: 'tw', to: 'cn' });
+  if (!_convHant) _convHant = await OpenCC.Converter({ from: 'cn', to: 'tw' });
+}
+
+// 掃描並轉換 body 的文字節點
+function convertTextNodes(root, convertFn) {
+  const walker = document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        let p = node.parentNode;
+        while (p) {
+          const tag = (p.tagName || '').toLowerCase();
+          if (tag === 'script' || tag === 'style' || tag === 'noscript') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          p = p.parentNode;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  texts.forEach(t => { t.nodeValue = convertFn(t.nodeValue); });
+}
+
+// 也把表單值/屬性轉一下
+function convertFormValues(convertFn) {
+  document.querySelectorAll('.colName').forEach(inp => {
+    if (typeof inp.value === 'string' && inp.value.trim()) inp.value = convertFn(inp.value);
+    if (inp.placeholder) inp.placeholder = convertFn(inp.placeholder);
+  });
+  document.querySelectorAll('[title]').forEach(el => { el.title = convertFn(el.title); });
+  document.querySelectorAll('[aria-label]').forEach(el => {
+    el.setAttribute('aria-label', convertFn(el.getAttribute('aria-label') || ''));
+  });
+}
+
+// 主函式：套語系（hant/hans）
+async function applyLanguage(lang) {
+  await ensureConverters();
+  const convertFn = (lang === 'hans') ? _convHans : _convHant;
+
+  convertTextNodes(document.body, convertFn);
+  convertFormValues(convertFn);
+  document.title = convertFn(document.title || '');  // ← 新增
+
+  document.documentElement.lang = (lang === 'hans') ? 'zh-Hans' : 'zh-Hant';
+  currentLang = lang;
+
+  try {
+    const state = snapshotState();
+    state.lang = currentLang;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) {}
+}
+
+
+// 封裝兩個給按鈕用的 API
+function switchToHant() { applyLanguage('hant'); }
+function switchToHans() { applyLanguage('hans'); }
+
+// 你的 <script> 在頁尾，DOM 已就緒，可直接綁定
+document.getElementById('toHantBtn')?.addEventListener('click', switchToHant);
+document.getElementById('toHansBtn')?.addEventListener('click', switchToHans);
+
+
+
 </script>
 
 </body>
