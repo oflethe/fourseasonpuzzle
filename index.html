@@ -18,9 +18,9 @@
     .checked-cell { background-color: #aec1df !important; }
 
     /* 金3/4/5 字色（用在結果表格內的數字） */
-    .gold3 { color:#d4af37; font-weight:700; }
+    .gold5 { color:#d4af37; font-weight:700; }
     .gold4 { color:#ff5733; font-weight:700; }
-    .gold5 { color:#0d6efd;  font-weight:700; }
+    .gold3 { color:#0d6efd;  font-weight:700; }
 
     /* 結果表格樣式微調 */
     #result table th, #result table td { vertical-align: middle; }
@@ -555,7 +555,10 @@ function calculate(){
     let lackText = "";
     if (lackNums.length){
       lackNums.sort((a,b)=>a-b);
-      lackText = lackCompress ? formatRanges(lackNums) : lackParts.join("");
+      lackText = lackCompress
+  ? formatRangesHtml(lackNums, (rowNo) => goldClass(c+1, rowNo))
+  : lackParts.join("");
+
     } else {
       lackText = `<span class="tag-ok bg-danger text-white fw-bold">齊</span>`;
     }
@@ -566,7 +569,8 @@ function calculate(){
       multiText = multiParts.length ? multiParts.join("") : "";
     } else if (multiNums.length){
       multiNums.sort((a,b)=>a-b);
-      multiText = formatRanges(multiNums);
+        multiText = formatRangesHtml(multiNums, (rowNo) => goldClass(c + 1, rowNo));
+
     }
 
     html += `
@@ -625,6 +629,46 @@ function formatRanges(nums){
   return parts.join("、"); // ← 這個「、」等下可改
 }
 
+// 依連號＋相同金卡等級做分段；一般段用 ~ 壓縮，金卡段逐個輸出並套 class
+function formatRangesHtml(nums, getClassForRow) {
+  if (!nums.length) return "";
+  const out = [];
+  let start = nums[0], prev = nums[0];
+  let segClass = getClassForRow(start); // "", "gold3"|"gold4"|"gold5"
+
+  const flush = (s, e, cls) => {
+    if (cls) {
+      // 金卡段：逐個輸出，保留顏色
+      for (let n = s; n <= e; n++) {
+        const c = getClassForRow(n);
+        out.push(c ? `<span class="${c}">${n}</span>` : String(n));
+      }
+    } else {
+      // 一般段：可壓縮
+      out.push(s === e ? String(s) : `${s}~${e}`);
+    }
+  };
+
+  for (let i = 1; i < nums.length; i++) {
+    const n = nums[i];
+    const c = getClassForRow(n);
+    const contiguous = (n === prev + 1);
+    const sameClass  = (c === segClass);
+
+    if (contiguous && sameClass) {
+      prev = n;
+      continue;
+    }
+    // 斷段
+    flush(start, prev, segClass);
+    start = prev = n;
+    segClass = c;
+  }
+  // 最後一段
+  flush(start, prev, segClass);
+
+  return out.join("、");
+}
 
 
 // 將某欄位「已勾選且 qty>=1」的格子，數量一鍵歸 0
