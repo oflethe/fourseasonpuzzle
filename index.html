@@ -124,26 +124,40 @@
   
 
   <!-- 結果區塊（含日期、開關、按鈕） -->
-<div id="captureArea">
-  <div class="row">
-    <h3 class="mt-4">結果</h3>
+<div class="row align-items-center mt-3 mb-2">
+  <h3 class="mt-4 mb-0 me-3">結果</h3>
 
-   <label class="small" id="labLackCompress">
-  <input type="checkbox" id="lackCompressToggle"> 缺的範圍壓縮
-</label>
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <label class="small mb-0" id="labLackCompress">
+      <input type="checkbox" id="lackCompressToggle"> 缺的範圍壓縮
+    </label>
 
-<label class="small" id="labShowQty">
-  <input type="checkbox" id="showQtyToggle"> 顯示多卡數量
-</label>
+    <label class="small mb-0" id="labShowQty">
+      <input type="checkbox" id="showQtyToggle"> 顯示多卡數量
+    </label>
+  </div>
+</div>
 
+
+  
+<div id="legendTop"
+     class="d-flex justify-content-between align-items-center gap-3 small mb-1 flex-wrap">
+  <div class="d-flex align-items-center gap-3">
+    <span><span class="legend-dot gold5">●</span> 金5</span>
+    <span><span class="legend-dot gold4">●</span> 金4</span>
+    <span><span class="legend-dot gold3">●</span> 金3</span>
   </div>
 
   <!-- 日期顯示 -->
-  <span id="todayBadge" class="mt-3 col-sm-12 ms-2 d-flex justify-content-end fw-bold"></span>
+  <span id="todayBadge" class="fw-bold"></span>
+</div>
+
+ 
 
   <!-- 結果表格 -->
   <div id="result" class="p-3 bg-white border rounded col-md-auto col-sm-12"></div>
 </div>
+
 
 <!-- 操作按鈕區 -->
 <div class="mt-3 d-flex flex-wrap gap-2 mb-5">
@@ -281,7 +295,7 @@ tbody.addEventListener('click', (e) => {
   chk.checked = !chk.checked;
 
   // 若剛剛是從「未勾 → 勾」且數量空白，自動填 1
-  if (chk.checked && qty.value === "") qty.value = "1";
+  //if (chk.checked && qty.value === "") qty.value = "1";
 
   calculate();
   refreshCheckedStyles();
@@ -299,10 +313,10 @@ tbody.addEventListener('change', (e) => {
   const qty = td.querySelector('.qty');
   if (!chk || !qty) return;
 
-  // 若點到的是 checkbox，且從未勾→勾選，且數量空白，就自動補 1
-  if (e.target === chk && chk.checked && qty.value === "") {
-    qty.value = "1";
-  }
+  // // 若點到的是 checkbox，且從未勾→勾選，且數量空白，就自動補 1
+  // if (e.target === chk && chk.checked && qty.value === "") {
+  //   qty.value = "1";
+  // }
   calculate();
   refreshCheckedStyles();
   saveStateDebounced();
